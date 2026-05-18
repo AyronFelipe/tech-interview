@@ -54,6 +54,7 @@ class User:
         self.credit_card_number = None
         self.balance = 0.0
         self.feed = []
+        self.friends = []
 
         if self._is_valid_username(username):
             self.username = username
@@ -64,8 +65,14 @@ class User:
         return self.feed
 
     def add_friend(self, new_friend):
-        # TODO: add code here
-        pass
+        if new_friend is self:
+            raise PaymentException("User cannot add themselves as a friend.")
+
+        if new_friend in self.friends:
+            raise PaymentException("User is already a friend.")
+
+        self.friends.append(new_friend)
+        new_friend.friends.append(self)
 
     def add_to_balance(self, amount):
         self.balance += float(amount)
@@ -333,6 +340,42 @@ class TestUser(unittest.TestCase):
         venmo = MiniVenmo()
         bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
         self.assertEqual(len(bobby.retrieve_feed()), 0)
+
+    def test_add_friend(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+
+        self.assertIn(carol, bobby.friends)
+        self.assertIn(bobby, carol.friends)
+
+    def test_add_friend_is_bidirectional(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+
+        self.assertEqual(len(bobby.friends), 1)
+        self.assertEqual(len(carol.friends), 1)
+
+    def test_add_self_as_friend_raises(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+
+        with self.assertRaises(PaymentException):
+            bobby.add_friend(bobby)
+
+    def test_add_duplicate_friend_raises(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+        with self.assertRaises(PaymentException):
+            bobby.add_friend(carol)
 
 
 if __name__ == "__main__":
