@@ -81,8 +81,10 @@ class User:
             raise CreditCardException("Invalid credit card number.")
 
     def pay(self, target, amount, note):
-        # TODO: add logic to pay with card or balance
-        pass
+        amount = float(amount)
+        if self.balance >= amount:
+            return self.pay_with_balance(target, amount, note)
+        return self.pay_with_card(target, amount, note)
 
     def pay_with_card(self, target, amount, note):
         amount = float(amount)
@@ -103,8 +105,22 @@ class User:
         return payment
 
     def pay_with_balance(self, target, amount, note):
-        # TODO: add code here
-        pass
+        amount = float(amount)
+
+        if self.username == target.username:
+            raise PaymentException("User cannot pay themselves.")
+
+        if amount <= 0.0:
+            raise PaymentException("Amount must be a non-negative number.")
+
+        if self.balance < amount:
+            raise PaymentException("Insufficient funds in balance.")
+
+        self.balance -= amount
+        payment = Payment(amount, self, target, note)
+        target.add_to_balance(amount)
+
+        return payment
 
     def _is_valid_credit_card(self, credit_card_number):
         return credit_card_number in ["4111111111111111", "4242424242424242"]
@@ -186,6 +202,70 @@ class TestUser(unittest.TestCase):
         venmo = MiniVenmo()
         user = venmo.create_user("Bobby", 0.00, "4111111111111111")
         self.assertEqual(user.balance, 0.00)
+
+    def test_pay_uses_balance_when_sufficient(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 10.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 0.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+
+        self.assertEqual(bobby.balance, 5.00)
+        self.assertEqual(carol.balance, 5.00)
+
+    def test_pay_uses_card_when_insufficient_balance(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 2.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 0.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+
+        self.assertEqual(bobby.balance, 2.00)
+        self.assertEqual(carol.balance, 5.00)
+
+    def test_pay_self_raises(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 10.00, "4111111111111111")
+
+        with self.assertRaises(PaymentException):
+            bobby.pay(bobby, 5.00, "Self")
+
+    def test_pay_negative_amount_raises(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 10.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 0.00, "4242424242424242")
+
+        with self.assertRaises(PaymentException):
+            bobby.pay(carol, -5.00, "Negative")
+
+    def test_pay_zero_amount_raises(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 10.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 0.00, "4242424242424242")
+
+        with self.assertRaises(PaymentException):
+            bobby.pay(carol, 0, "Zero")
+
+    def test_pay_without_card_and_insufficient_balance_raises(self):
+        bobby = User("Bobby")
+        carol = User("Carol")
+        bobby.add_to_balance(1.00)
+
+        with self.assertRaises(PaymentException):
+            bobby.pay(carol, 5.00, "No card")
+
+    def test_pay_returns_payment_object(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 10.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 0.00, "4242424242424242")
+
+        payment = bobby.pay(carol, 5.00, "Coffee")
+
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 5.00)
+        self.assertEqual(payment.actor.username, "Bobby")
+        self.assertEqual(payment.target.username, "Carol")
+        self.assertEqual(payment.note, "Coffee")
 
 
 if __name__ == "__main__":
