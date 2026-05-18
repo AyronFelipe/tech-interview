@@ -53,6 +53,7 @@ class User:
     def __init__(self, username):
         self.credit_card_number = None
         self.balance = 0.0
+        self.feed = []
 
         if self._is_valid_username(username):
             self.username = username
@@ -60,8 +61,7 @@ class User:
             raise UsernameException("Username not valid.")
 
     def retrieve_feed(self):
-        # TODO: add code here
-        return []
+        return self.feed
 
     def add_friend(self, new_friend):
         # TODO: add code here
@@ -83,8 +83,14 @@ class User:
     def pay(self, target, amount, note):
         amount = float(amount)
         if self.balance >= amount:
-            return self.pay_with_balance(target, amount, note)
-        return self.pay_with_card(target, amount, note)
+            payment = self.pay_with_balance(target, amount, note)
+        else:
+            payment = self.pay_with_card(target, amount, note)
+
+        self.feed.append(payment)
+        target.feed.append(payment)
+
+        return payment
 
     def pay_with_card(self, target, amount, note):
         amount = float(amount)
@@ -141,10 +147,9 @@ class MiniVenmo:
         return user
 
     def render_feed(self, feed):
-        # Bobby paid Carol $5.00 for Coffee
-        # Carol paid Bobby $15.00 for Lunch
-        # TODO: add code here
-        pass
+        for item in feed:
+            if isinstance(item, Payment):
+                print(f"{item.actor.username} paid {item.target.username} ${item.amount:.2f} for {item.note}")
 
     @classmethod
     def run(cls):
@@ -266,6 +271,68 @@ class TestUser(unittest.TestCase):
         self.assertEqual(payment.actor.username, "Bobby")
         self.assertEqual(payment.target.username, "Carol")
         self.assertEqual(payment.note, "Coffee")
+
+    def test_retrieve_feed_after_payment(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+
+        feed = bobby.retrieve_feed()
+        self.assertEqual(len(feed), 1)
+        self.assertIsInstance(feed[0], Payment)
+        self.assertEqual(feed[0].actor.username, "Bobby")
+        self.assertEqual(feed[0].target.username, "Carol")
+        self.assertEqual(feed[0].amount, 5.00)
+        self.assertEqual(feed[0].note, "Coffee")
+
+    def test_feed_visible_to_both_users(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+
+        self.assertEqual(len(bobby.retrieve_feed()), 1)
+        self.assertEqual(len(carol.retrieve_feed()), 1)
+
+    def test_feed_multiple_payments(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+        carol.pay(bobby, 15.00, "Lunch")
+
+        feed = bobby.retrieve_feed()
+        self.assertEqual(len(feed), 2)
+        self.assertEqual(feed[0].note, "Coffee")
+        self.assertEqual(feed[1].note, "Lunch")
+
+    def test_render_feed_output(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+        carol.pay(bobby, 15.00, "Lunch")
+
+        import io
+        import sys
+        captured = io.StringIO()
+        sys.stdout = captured
+        venmo.render_feed(bobby.retrieve_feed())
+        sys.stdout = sys.__stdout__
+
+        output = captured.getvalue().strip().split("\n")
+        self.assertEqual(output[0], "Bobby paid Carol $5.00 for Coffee")
+        self.assertEqual(output[1], "Carol paid Bobby $15.00 for Lunch")
+
+    def test_feed_empty_initially(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        self.assertEqual(len(bobby.retrieve_feed()), 0)
 
 
 if __name__ == "__main__":
