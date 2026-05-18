@@ -49,6 +49,12 @@ class Payment:
         self.note = note
 
 
+class FriendActivity:
+    def __init__(self, actor, target):
+        self.actor = actor
+        self.target = target
+
+
 class User:
     def __init__(self, username):
         self.credit_card_number = None
@@ -73,6 +79,10 @@ class User:
 
         self.friends.append(new_friend)
         new_friend.friends.append(self)
+
+        activity = FriendActivity(self, new_friend)
+        self.feed.append(activity)
+        new_friend.feed.append(activity)
 
     def add_to_balance(self, amount):
         self.balance += float(amount)
@@ -157,6 +167,8 @@ class MiniVenmo:
         for item in feed:
             if isinstance(item, Payment):
                 print(f"{item.actor.username} paid {item.target.username} ${item.amount:.2f} for {item.note}")
+            elif isinstance(item, FriendActivity):
+                print(f"{item.actor.username} added {item.target.username} as a friend")
 
     @classmethod
     def run(cls):
@@ -376,6 +388,61 @@ class TestUser(unittest.TestCase):
         bobby.add_friend(carol)
         with self.assertRaises(PaymentException):
             bobby.add_friend(carol)
+
+    def test_add_friend_appears_in_feed(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+
+        feed = bobby.retrieve_feed()
+        self.assertEqual(len(feed), 1)
+        self.assertIsInstance(feed[0], FriendActivity)
+        self.assertEqual(feed[0].actor.username, "Bobby")
+        self.assertEqual(feed[0].target.username, "Carol")
+
+    def test_add_friend_feed_visible_to_both(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+
+        self.assertEqual(len(bobby.retrieve_feed()), 1)
+        self.assertEqual(len(carol.retrieve_feed()), 1)
+
+    def test_render_feed_with_friend_activity(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.add_friend(carol)
+
+        import io
+        import sys
+        captured = io.StringIO()
+        sys.stdout = captured
+        venmo.render_feed(bobby.retrieve_feed())
+        sys.stdout = sys.__stdout__
+
+        output = captured.getvalue().strip()
+        self.assertEqual(output, "Bobby added Carol as a friend")
+
+    def test_full_scenario(self):
+        venmo = MiniVenmo()
+        bobby = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        carol = venmo.create_user("Carol", 10.00, "4242424242424242")
+
+        bobby.pay(carol, 5.00, "Coffee")
+        carol.pay(bobby, 15.00, "Lunch")
+        bobby.add_friend(carol)
+
+        feed = bobby.retrieve_feed()
+        self.assertEqual(len(feed), 3)
+        self.assertIsInstance(feed[0], Payment)
+        self.assertIsInstance(feed[1], Payment)
+        self.assertIsInstance(feed[2], FriendActivity)
 
 
 if __name__ == "__main__":
