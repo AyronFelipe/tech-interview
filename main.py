@@ -119,8 +119,10 @@ class User:
 
 class MiniVenmo:
     def create_user(self, username, balance, credit_card_number):
-        # TODO: add code here
-        pass
+        user = User(username)
+        user.add_to_balance(balance)
+        user.add_credit_card(credit_card_number)
+        return user
 
     def render_feed(self, feed):
         # Bobby paid Carol $5.00 for Coffee
@@ -154,6 +156,36 @@ class TestUser(unittest.TestCase):
     def test_this_works(self):
         with self.assertRaises(UsernameException):
             raise UsernameException()
+
+    def test_create_user_sets_username(self):
+        venmo = MiniVenmo()
+        user = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        self.assertEqual(user.username, "Bobby")
+
+    def test_create_user_sets_balance(self):
+        venmo = MiniVenmo()
+        user = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        self.assertEqual(user.balance, 5.00)
+
+    def test_create_user_sets_credit_card(self):
+        venmo = MiniVenmo()
+        user = venmo.create_user("Bobby", 5.00, "4111111111111111")
+        self.assertEqual(user.credit_card_number, "4111111111111111")
+
+    def test_create_user_invalid_username(self):
+        venmo = MiniVenmo()
+        with self.assertRaises(UsernameException):
+            venmo.create_user("ab", 5.00, "4111111111111111")
+
+    def test_create_user_invalid_credit_card(self):
+        venmo = MiniVenmo()
+        with self.assertRaises(CreditCardException):
+            venmo.create_user("Bobby", 5.00, "1234567890123456")
+
+    def test_create_user_zero_balance(self):
+        venmo = MiniVenmo()
+        user = venmo.create_user("Bobby", 0.00, "4111111111111111")
+        self.assertEqual(user.balance, 0.00)
 
 
 if __name__ == "__main__":
